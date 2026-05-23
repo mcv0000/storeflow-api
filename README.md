@@ -22,7 +22,7 @@ The goal is to demonstrate clean backend architecture, GraphQL API design, Postg
 
 The project follows a clean service-oriented structure:
 
-```txt
+
 GraphQL Resolver
   -> Service Layer
     -> Repository Interface
