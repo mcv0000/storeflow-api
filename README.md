@@ -20,19 +20,21 @@ StoreFlow demonstrates backend engineering patterns used in real SaaS systems: t
 
 ```txt
 Client
-  ยก
+  ก
 GraphQL API
-  ยก
+  ก
 Resolvers
-  ยก
+  ก
 Service Layer
-  ยก
+  ก
 Repository Interfaces
-  ยก
+  ก
 PostgreSQL + Redis
+```
 
-Project structure:
+## Project Structure
 
+```txt
 cmd/api                 Application entrypoint
 internal/auth           JWT, password hashing, auth middleware
 internal/user           User domain
@@ -44,90 +46,126 @@ internal/db             PostgreSQL connection
 internal/cache          Redis connection
 internal/platform       Logging and HTTP middleware
 migrations              SQL migrations
-Engineering Decisions
-Integer cents for money
+```
+
+## Engineering Decisions
+
+### Integer cents for money
 
 Product and order prices are stored as integer cents instead of floating-point values. This avoids rounding errors and reflects how production commerce systems usually model money.
 
-Transactional order creation
+### Transactional order creation
 
-Creating an order updates multiple pieces of state: orders, order_items and products.inventory_count. This flow runs inside a PostgreSQL transaction so inventory and order data cannot get partially written.
+Creating an order updates multiple pieces of state: `orders`, `order_items` and `products.inventory_count`. This flow runs inside a PostgreSQL transaction so inventory and order data cannot get partially written.
 
-Historical order prices
+### Historical order prices
 
-Each order item stores unit_price_cents at the moment of purchase. Product prices can change later, but old orders must preserve the original purchase price.
+Each order item stores `unit_price_cents` at the moment of purchase. Product prices can change later, but old orders preserve the original purchase price.
 
-Redis cache invalidation
+### Redis cache invalidation
 
 Product listings are cached in Redis with a short TTL. Cache entries are invalidated after product creation and order creation because both operations can change product listing data.
 
-Store-level authorization
+### Store-level authorization
 
 Store owners can manage their own stores, products and orders. Order listing and order status updates require ownership checks.
 
-Features
-Users
-Register
-Login
-JWT authentication
-Authenticated me query
-bcrypt password hashing
-Stores
-Create store
-List stores owned by authenticated user
-Store ownership checks
-Products
-Create products
-Public product listing by store
-Integer-cent price modeling
-Inventory tracking
-Redis product listing cache
-Cache invalidation after writes
-Orders
-Create order
-Order items
-Status tracking: PENDING, PAID, SHIPPED, CANCELLED
-Transactional inventory decrement
-Historical unit price capture
-Owner-only order listing
-Owner-only status update
-Local Setup
+## Features
+
+### Users
+
+- Register
+- Login
+- JWT authentication
+- Authenticated `me` query
+- bcrypt password hashing
+
+### Stores
+
+- Create store
+- List stores owned by authenticated user
+- Store ownership checks
+
+### Products
+
+- Create products
+- Public product listing by store
+- Integer-cent price modeling
+- Inventory tracking
+- Redis product listing cache
+- Cache invalidation after writes
+
+### Orders
+
+- Create order
+- Order items
+- Status tracking: `PENDING`, `PAID`, `SHIPPED`, `CANCELLED`
+- Transactional inventory decrement
+- Historical unit price capture
+- Owner-only order listing
+- Owner-only status update
+
+## Local Setup
 
 Start PostgreSQL and Redis:
 
+```powershell
 docker compose up -d postgres redis
+```
 
 Run database migrations:
 
+```powershell
 Get-ChildItem .\migrations\*.up.sql | Sort-Object Name | ForEach-Object {
   Write-Host "Running migration:" $_.Name
   Get-Content $_.FullName | docker exec -i storeflow-postgres psql -v ON_ERROR_STOP=1 -U storeflow -d storeflow
 }
+```
 
 Run the API:
 
+```powershell
 go run .\cmd\api\main.go
+```
 
 Health check:
 
+```powershell
 curl.exe -i http://localhost:8080/health
+```
 
 Expected response:
 
+```txt
 HTTP/1.1 200 OK
 X-Request-ID: <request-id>
 
 OK
+```
 
 GraphQL endpoint:
 
+```txt
 http://localhost:8080/graphql
+```
 
 GraphQL Playground:
 
+```txt
 http://localhost:8080/playground
-Example GraphQL Operations
-Register
+```
+
+## GraphQL Playground
+
+Example `createOrder` mutation running locally:
+
+![GraphQL Playground createOrder example](docs/graphql-playground-create-order.png)
+
+## Example GraphQL Operations
+
+### Register
+
+```graphql
 mutation Register($input: RegisterInput!) {
   register(input: $input) {
     token
@@ -140,9 +178,11 @@ mutation Register($input: RegisterInput!) {
     }
   }
 }
+```
 
 Variables:
 
+```json
 {
   "input": {
     "email": "jan@example.com",
@@ -150,7 +190,11 @@ Variables:
     "name": "Jan Test"
   }
 }
-Create Order
+```
+
+### Create Order
+
+```graphql
 mutation CreateOrder($input: CreateOrderInput!) {
   createOrder(input: $input) {
     id
@@ -174,9 +218,11 @@ mutation CreateOrder($input: CreateOrderInput!) {
     updatedAt
   }
 }
+```
 
 Variables:
 
+```json
 {
   "input": {
     "storeId": "STORE_ID",
@@ -189,92 +235,100 @@ Variables:
     ]
   }
 }
-Redis Cache
+```
+
+## Redis Cache
 
 Product listings use this Redis key format:
 
+```txt
 store:{storeId}:products:active:{true|false}
+```
 
 Example:
 
+```txt
 store:789adbc2-b8f5-4380-9095-2727017410c5:products:active:true
+```
 
 Cache behavior:
 
-60-second TTL
-invalidated after product creation
-invalidated after order creation because inventory changes
-CI
+- 60-second TTL
+- invalidated after product creation
+- invalidated after order creation because inventory changes
+
+## CI
 
 GitHub Actions validates the project on push and pull request.
 
 The CI workflow runs:
 
-Go dependency download
-gofmt check
-go test ./...
-SQL migrations against PostgreSQL
-API build
-Deployment Story
+- Go dependency download
+- `gofmt` check
+- `go test ./...`
+- SQL migrations against PostgreSQL
+- API build
+
+## Deployment Story
 
 The project currently runs locally with Docker Compose and is validated through GitHub Actions CI.
 
 Production-oriented pieces already included:
 
-Dockerfile
-Docker Compose
-SQL migrations
-environment-based config
-graceful HTTP shutdown
-request IDs
-structured JSON logs
-CI pipeline
+- Dockerfile
+- Docker Compose
+- SQL migrations
+- environment-based config
+- graceful HTTP shutdown
+- request IDs
+- structured JSON logs
+- CI pipeline
 
 A production deployment would typically run the API as a containerized service behind a load balancer, using managed PostgreSQL and Redis.
 
 Not included yet:
 
-Kubernetes manifests
-Terraform
-production secrets management
-metrics and alerting
-distributed tracing
-Tests
+- Kubernetes manifests
+- Terraform
+- production secrets management
+- metrics and alerting
+- distributed tracing
+
+## Tests
 
 Run all tests:
 
+```powershell
 go test ./...
+```
 
 Current test coverage includes:
 
-password hashing
-password verification
-JWT generation and validation
-product cache key behavior
-order status validation
-order service validation for invalid inputs
-Current Limitations
+- password hashing
+- password verification
+- JWT generation and validation
+- product cache key behavior
+- order status validation
+- order service validation for invalid inputs
+
+## Current Limitations
 
 Not implemented:
 
-payments
-Stripe integration
-refunds
-shipping
-tax calculation
-pagination
-dataloaders
-role-based access control
-production deployment manifests
-Next Improvements
-Add pagination for products and orders
-Add integration tests with PostgreSQL
-Add GraphQL dataloaders
-Add metrics and alerting
-Add rate limiting
-```
-## GraphQL Playground
+- payments
+- Stripe integration
+- refunds
+- shipping
+- tax calculation
+- pagination
+- dataloaders
+- role-based access control
+- production deployment manifests
 
-Example `createOrder` mutation running locally:
+## Next Improvements
 
-![GraphQL Playground createOrder example](docs/graphql-playground-create-order.png)
+- Add pagination for products and orders
+- Add integration tests with PostgreSQL
+- Add GraphQL dataloaders
+- Add metrics and alerting
+- Add rate limiting
