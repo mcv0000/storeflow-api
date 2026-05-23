@@ -322,3 +322,26 @@ Add structured logging
 Add request IDs
 Add rate limiting
 Add CI pipeline with GitHub Actions
+
+## Deployment Story
+
+This project is currently designed to run locally with Docker Compose and to be validated through GitHub Actions CI.
+
+Current deployment-related pieces:
+
+- Dockerfile for building the Go API
+- Docker Compose for PostgreSQL, Redis and local API development
+- SQL migrations for database setup
+- GitHub Actions CI running tests, formatting checks, migrations and build
+- Graceful HTTP shutdown on SIGINT/SIGTERM
+- Request IDs and structured JSON request logs
+
+A production deployment would typically run the API as a containerized service behind a load balancer, with managed PostgreSQL and Redis services. The current architecture keeps configuration in environment variables, which makes the service portable across platforms such as Fly.io, Render, ECS, Kubernetes or GCP Cloud Run.
+
+Not included yet:
+
+- Kubernetes manifests
+- Terraform
+- production secrets management
+- metrics/alerting stack
+- distributed tracing
