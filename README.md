@@ -272,3 +272,8 @@ Add integration tests with PostgreSQL
 Add GraphQL dataloaders
 Add metrics and alerting
 Add rate limiting
+## GraphQL Playground
+
+Example `createOrder` mutation running locally:
+
+![GraphQL Playground createOrder example](docs/graphql-playground-create-order.png)
