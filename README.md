@@ -20,15 +20,15 @@ StoreFlow demonstrates backend engineering patterns used in real SaaS systems: t
 
 ```txt
 Client
-  ก
+  ยก
 GraphQL API
-  ก
+  ยก
 Resolvers
-  ก
+  ยก
 Service Layer
-  ก
+  ยก
 Repository Interfaces
-  ก
+  ยก
 PostgreSQL + Redis
 
 Project structure:
@@ -272,6 +272,7 @@ Add integration tests with PostgreSQL
 Add GraphQL dataloaders
 Add metrics and alerting
 Add rate limiting
+```
 ## GraphQL Playground
 
 Example `createOrder` mutation running locally:
