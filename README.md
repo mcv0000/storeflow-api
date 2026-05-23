@@ -1,11 +1,19 @@
 # StoreFlow API
 
-StoreFlow API is a lightweight commerce backend built in Go.  
-The project is inspired by Shopify/Stripe-style backend systems and focuses on production-oriented backend engineering patterns.
+Production-oriented commerce backend built in Go using GraphQL, PostgreSQL and Redis.
 
-This is not a full Shopify clone.  
-The goal is to demonstrate clean backend architecture, GraphQL API design, PostgreSQL data modeling, Redis caching, authentication, and transactional order creation.
+StoreFlow demonstrates backend engineering patterns used in SaaS systems: transactional order processing, JWT authentication, Redis-backed caching with invalidation, store-level authorization, Docker-based development, and clean service boundaries.
 
+## Highlights
+
+- GraphQL API with gqlgen
+- PostgreSQL schema for users, stores, products, orders and order items
+- Transactional order creation with inventory decrement
+- Redis product listing cache with TTL and invalidation
+- JWT authentication and store ownership checks
+- Docker Compose development environment
+- GitHub Actions CI for tests, formatting, migrations and build
+- Graceful HTTP server shutdown
 ## Tech Stack
 
 - Go
