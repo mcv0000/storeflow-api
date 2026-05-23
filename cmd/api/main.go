@@ -16,6 +16,7 @@ import (
 	"github.com/mcv0000/storeflow-api/internal/graphql"
 	orderdomain "github.com/mcv0000/storeflow-api/internal/order"
 	"github.com/mcv0000/storeflow-api/internal/platform/logger"
+	httpmiddleware "github.com/mcv0000/storeflow-api/internal/platform/middleware"
 	"github.com/mcv0000/storeflow-api/internal/product"
 	"github.com/mcv0000/storeflow-api/internal/store"
 	"github.com/mcv0000/storeflow-api/internal/user"
@@ -23,7 +24,7 @@ import (
 
 func main() {
 	logger.Init()
-	logger.Info.Println("Starting StoreFlow API...")
+	logger.InfoJSON("starting StoreFlow API", nil)
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -32,21 +33,21 @@ func main() {
 
 	ctx := context.Background()
 
-	logger.Info.Println("Connecting to PostgreSQL...")
+	logger.InfoJSON("connecting to PostgreSQL", nil)
 	dbPool, err := db.NewPostgresPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Error.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer dbPool.Close()
-	logger.Info.Println("Connected to PostgreSQL")
+	logger.InfoJSON("connected to PostgreSQL", nil)
 
-	logger.Info.Println("Connecting to Redis...")
+	logger.InfoJSON("connecting to Redis", nil)
 	redisClient, err := cache.NewRedisClient(ctx, cfg.RedisURL)
 	if err != nil {
 		logger.Error.Fatalf("Failed to connect to Redis: %v", err)
 	}
 	defer redisClient.Close()
-	logger.Info.Println("Connected to Redis")
+	logger.InfoJSON("connected to Redis", nil)
 
 	userRepo := user.NewPostgresRepository(dbPool)
 	storeRepo := store.NewPostgresRepository(dbPool)
@@ -70,16 +71,21 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
+	handler := httpmiddleware.RequestID(httpmiddleware.Logging(mux))
+
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
 	go func() {
-		logger.Info.Printf("Server listening on port %s", cfg.Port)
+		logger.InfoJSON("server listening", logger.Fields{
+			"port": cfg.Port,
+		})
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error.Fatalf("Failed to start server: %v", err)
 		}
@@ -89,7 +95,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info.Println("Shutting down server...")
+	logger.InfoJSON("shutting down server", nil)
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -98,5 +104,5 @@ func main() {
 		logger.Error.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	logger.Info.Println("Server stopped")
+	logger.InfoJSON("server stopped", nil)
 }
