@@ -1,0 +1,117 @@
+type User {
+  id: ID!
+  email: String!
+  name: String!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+type Store {
+  id: ID!
+  ownerId: ID!
+  name: String!
+  slug: String!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Product {
+  id: ID!
+  storeId: ID!
+  name: String!
+  description: String
+  priceCents: Int!
+  currency: String!
+  inventoryCount: Int!
+  active: Boolean!
+  createdAt: String!
+  updatedAt: String!
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  CANCELLED
+}
+
+type Order {
+  id: ID!
+  storeId: ID!
+  customerEmail: String!
+  status: OrderStatus!
+  totalCents: Int!
+  currency: String!
+  items: [OrderItem!]!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type OrderItem {
+  id: ID!
+  orderId: ID!
+  productId: ID!
+  product: Product!
+  quantity: Int!
+  unitPriceCents: Int!
+  totalCents: Int!
+  createdAt: String!
+}
+
+input RegisterInput {
+  email: String!
+  password: String!
+  name: String!
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+input CreateStoreInput {
+  name: String!
+  slug: String
+}
+
+input CreateProductInput {
+  storeId: ID!
+  name: String!
+  description: String
+  priceCents: Int!
+  currency: String
+  inventoryCount: Int
+}
+
+input CreateOrderItemInput {
+  productId: ID!
+  quantity: Int!
+}
+
+input CreateOrderInput {
+  storeId: ID!
+  customerEmail: String!
+  items: [CreateOrderItemInput!]!
+}
+
+type Query {
+  me: User!
+  myStores: [Store!]!
+  products(storeId: ID!, activeOnly: Boolean): [Product!]!
+  order(id: ID!): Order!
+  orders(storeId: ID!, status: OrderStatus): [Order!]!
+}
+
+type Mutation {
+  register(input: RegisterInput!): AuthPayload!
+  login(input: LoginInput!): AuthPayload!
+  createStore(input: CreateStoreInput!): Store!
+  createProduct(input: CreateProductInput!): Product!
+  createOrder(input: CreateOrderInput!): Order!
+  updateOrderStatus(id: ID!, status: OrderStatus!): Order!
+}
