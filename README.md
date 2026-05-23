@@ -2,41 +2,36 @@
 
 Production-oriented commerce backend built in Go using GraphQL, PostgreSQL and Redis.
 
-StoreFlow demonstrates backend engineering patterns used in SaaS systems: transactional order processing, JWT authentication, Redis-backed caching with invalidation, store-level authorization, Docker-based development, and clean service boundaries.
+StoreFlow demonstrates backend engineering patterns used in real SaaS systems: transactional order processing, JWT authentication, Redis-backed caching with invalidation, store-level authorization, Docker-based development, request IDs, structured JSON logging and clean service boundaries.
 
 ## Highlights
 
 - GraphQL API with gqlgen
-- PostgreSQL schema for users, stores, products, orders and order items
-- Transactional order creation with inventory decrement
+- PostgreSQL data model for users, stores, products, orders and order items
+- Transactional checkout flow with inventory decrement
 - Redis product listing cache with TTL and invalidation
-- JWT authentication and store ownership checks
+- JWT authentication and store ownership authorization
 - Docker Compose development environment
-- GitHub Actions CI for tests, formatting, migrations and build
+- GitHub Actions CI for formatting, tests, migrations and build
+- Request IDs and structured JSON HTTP logs
 - Graceful HTTP server shutdown
-## Tech Stack
-
-- Go
-- GraphQL with gqlgen
-- PostgreSQL
-- Redis
-- Docker Compose
-- JWT authentication
-- bcrypt password hashing
-- PostgreSQL transactions
-- Clean modular architecture
 
 ## Architecture
 
-The project follows a clean service-oriented structure:
-
 ```txt
-GraphQL Resolver
-  -> Service Layer
-    -> Repository Interface
-      -> PostgreSQL / Redis
+Client
+  ¡
+GraphQL API
+  ¡
+Resolvers
+  ¡
+Service Layer
+  ¡
+Repository Interfaces
+  ¡
+PostgreSQL + Redis
 
-Main folders:
+Project structure:
 
 cmd/api                 Application entrypoint
 internal/auth           JWT, password hashing, auth middleware
@@ -44,17 +39,39 @@ internal/user           User domain
 internal/store          Store domain
 internal/product        Product domain + Redis product cache
 internal/order          Orders, order items, transactional checkout logic
-internal/graphql        gqlgen schema, resolvers, generated GraphQL code
+internal/graphql        gqlgen schema, resolvers and generated code
 internal/db             PostgreSQL connection
 internal/cache          Redis connection
+internal/platform       Logging and HTTP middleware
 migrations              SQL migrations
-Current Features
+Engineering Decisions
+Integer cents for money
+
+Product and order prices are stored as integer cents instead of floating-point values. This avoids rounding errors and reflects how production commerce systems usually model money.
+
+Transactional order creation
+
+Creating an order updates multiple pieces of state: orders, order_items and products.inventory_count. This flow runs inside a PostgreSQL transaction so inventory and order data cannot get partially written.
+
+Historical order prices
+
+Each order item stores unit_price_cents at the moment of purchase. Product prices can change later, but old orders must preserve the original purchase price.
+
+Redis cache invalidation
+
+Product listings are cached in Redis with a short TTL. Cache entries are invalidated after product creation and order creation because both operations can change product listing data.
+
+Store-level authorization
+
+Store owners can manage their own stores, products and orders. Order listing and order status updates require ownership checks.
+
+Features
 Users
-Register user
-Login user
-JWT generation
+Register
+Login
+JWT authentication
 Authenticated me query
-Password hashing with bcrypt
+bcrypt password hashing
 Stores
 Create store
 List stores owned by authenticated user
@@ -62,44 +79,18 @@ Store ownership checks
 Products
 Create products
 Public product listing by store
-Product price stored as integer cents
-Product inventory tracking
-Redis cache for product listings
-Cache TTL
-Cache invalidation on product creation
+Integer-cent price modeling
+Inventory tracking
+Redis product listing cache
+Cache invalidation after writes
 Orders
 Create order
 Order items
-Order status tracking:
-PENDING
-PAID
-SHIPPED
-CANCELLED
-Transactional order creation
-Inventory decrement inside transaction
-Historical unit price copied into order item
+Status tracking: PENDING, PAID, SHIPPED, CANCELLED
+Transactional inventory decrement
+Historical unit price capture
 Owner-only order listing
-Owner-only order status update
-Redis product cache invalidated after order creation
-Why This Project Matters
-
-This project demonstrates backend concepts expected in production SaaS systems:
-
-Clean architecture boundaries
-No database logic inside GraphQL resolvers
-Context-aware database and cache operations
-Proper money handling with integer cents
-JWT authentication
-Store-level authorization checks
-PostgreSQL transactions for multi-step business operations
-Redis used for a real performance case, not decorative caching
-Cache invalidation after writes
-SQL migrations
-Meaningful unit tests
-Requirements
-Go
-Docker Desktop
-Docker Compose
+Owner-only status update
 Local Setup
 
 Start PostgreSQL and Redis:
@@ -119,9 +110,12 @@ go run .\cmd\api\main.go
 
 Health check:
 
-curl.exe http://localhost:8080/health
+curl.exe -i http://localhost:8080/health
 
 Expected response:
+
+HTTP/1.1 200 OK
+X-Request-ID: <request-id>
 
 OK
 
@@ -132,7 +126,7 @@ http://localhost:8080/graphql
 GraphQL Playground:
 
 http://localhost:8080/playground
-Example GraphQL Requests
+Example GraphQL Operations
 Register
 mutation Register($input: RegisterInput!) {
   register(input: $input) {
@@ -156,63 +150,7 @@ Variables:
     "name": "Jan Test"
   }
 }
-Create Store
-
-Requires:
-
-Authorization: Bearer <token>
-mutation CreateStore($input: CreateStoreInput!) {
-  createStore(input: $input) {
-    id
-    ownerId
-    name
-    slug
-    createdAt
-    updatedAt
-  }
-}
-
-Variables:
-
-{
-  "input": {
-    "name": "Test Store",
-    "slug": "test-store"
-  }
-}
-Create Product
-
-Requires:
-
-Authorization: Bearer <token>
-mutation CreateProduct($input: CreateProductInput!) {
-  createProduct(input: $input) {
-    id
-    storeId
-    name
-    priceCents
-    currency
-    inventoryCount
-    active
-  }
-}
-
-Variables:
-
-{
-  "input": {
-    "storeId": "STORE_ID",
-    "name": "Test Cap",
-    "description": "Black cotton cap",
-    "priceCents": 3900,
-    "currency": "USD",
-    "inventoryCount": 50
-  }
-}
 Create Order
-
-Public checkout-style operation.
-
 mutation CreateOrder($input: CreateOrderInput!) {
   createOrder(input: $input) {
     id
@@ -222,7 +160,6 @@ mutation CreateOrder($input: CreateOrderInput!) {
     totalCents
     currency
     items {
-      id
       productId
       quantity
       unitPriceCents
@@ -252,28 +189,9 @@ Variables:
     ]
   }
 }
-Update Order Status
-
-Requires:
-
-Authorization: Bearer <token>
-mutation UpdateOrderStatus($id: ID!, $status: OrderStatus!) {
-  updateOrderStatus(id: $id, status: $status) {
-    id
-    status
-    updatedAt
-  }
-}
-
-Variables:
-
-{
-  "id": "ORDER_ID",
-  "status": "PAID"
-}
 Redis Cache
 
-Product listings are cached with this key format:
+Product listings use this Redis key format:
 
 store:{storeId}:products:active:{true|false}
 
@@ -281,12 +199,46 @@ Example:
 
 store:789adbc2-b8f5-4380-9095-2727017410c5:products:active:true
 
-The cache uses a 60-second TTL.
+Cache behavior:
 
-Cache is invalidated when:
+60-second TTL
+invalidated after product creation
+invalidated after order creation because inventory changes
+CI
 
-a product is created
-an order is created and product inventory changes
+GitHub Actions validates the project on push and pull request.
+
+The CI workflow runs:
+
+Go dependency download
+gofmt check
+go test ./...
+SQL migrations against PostgreSQL
+API build
+Deployment Story
+
+The project currently runs locally with Docker Compose and is validated through GitHub Actions CI.
+
+Production-oriented pieces already included:
+
+Dockerfile
+Docker Compose
+SQL migrations
+environment-based config
+graceful HTTP shutdown
+request IDs
+structured JSON logs
+CI pipeline
+
+A production deployment would typically run the API as a containerized service behind a load balancer, using managed PostgreSQL and Redis.
+
+Not included yet:
+
+Kubernetes manifests
+Terraform
+production secrets management
+metrics and alerting
+distributed tracing
 Tests
 
 Run all tests:
@@ -303,7 +255,7 @@ order status validation
 order service validation for invalid inputs
 Current Limitations
 
-Not implemented yet:
+Not implemented:
 
 payments
 Stripe integration
@@ -313,35 +265,10 @@ tax calculation
 pagination
 dataloaders
 role-based access control
-production deployment pipeline
-Next Planned Improvements
+production deployment manifests
+Next Improvements
 Add pagination for products and orders
 Add integration tests with PostgreSQL
-Add dataloaders for GraphQL nested product resolution
-Add structured logging
-Add request IDs
+Add GraphQL dataloaders
+Add metrics and alerting
 Add rate limiting
-Add CI pipeline with GitHub Actions
-
-## Deployment Story
-
-This project is currently designed to run locally with Docker Compose and to be validated through GitHub Actions CI.
-
-Current deployment-related pieces:
-
-- Dockerfile for building the Go API
-- Docker Compose for PostgreSQL, Redis and local API development
-- SQL migrations for database setup
-- GitHub Actions CI running tests, formatting checks, migrations and build
-- Graceful HTTP shutdown on SIGINT/SIGTERM
-- Request IDs and structured JSON request logs
-
-A production deployment would typically run the API as a containerized service behind a load balancer, with managed PostgreSQL and Redis services. The current architecture keeps configuration in environment variables, which makes the service portable across platforms such as Fly.io, Render, ECS, Kubernetes or GCP Cloud Run.
-
-Not included yet:
-
-- Kubernetes manifests
-- Terraform
-- production secrets management
-- metrics/alerting stack
-- distributed tracing
