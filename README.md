@@ -20,15 +20,15 @@ StoreFlow demonstrates backend engineering patterns used in real SaaS systems: t
 
 ```txt
 Client
-  ¡
+  â†“
 GraphQL API
-  ¡
+  â†“
 Resolvers
-  ¡
+  â†“
 Service Layer
-  ¡
+  â†“
 Repository Interfaces
-  ¡
+  â†“
 PostgreSQL + Redis
 ```
 
